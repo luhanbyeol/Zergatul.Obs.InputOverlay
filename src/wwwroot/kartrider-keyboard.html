@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            /*background-color: black;*/ /* uncomment to this to debug in browser */
+            margin: 0;
+            padding: 0;
+        }
+        .hidden {
+            display: none !important;
+        }
+        div.container {
+            display: block;
+            white-space: nowrap;
+        }
+        div.keyboard {
+            display: inline-block;
+            margin: 10px;
+        }
+        div.mouse {
+            display: inline-block;
+            margin: 10px;
+        }
+        div.mouse > svg {
+            width: 200px;
+        }
+        div.button,
+        div.small-button,
+        div.tab-button,
+        div.caps-button,
+        div.shift-button,
+        div.ctrl-button,
+        div.alt-button,
+        div.space-button {
+            border: 2px solid white;
+            border-radius: 10px;
+            color: white;
+            display: inline-block;
+            /* font-family: Calibri; */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+            font-size: 20px;
+            line-height: 40px;
+            height: 40px;
+            text-align: center;
+            width: 40px;
+        }
+        div.small-button {
+            line-height: 30px;
+            height: 30px;
+        }
+        div.tab-button {
+            width: 60px;
+        }
+        div.caps-button {
+            width: 70px;
+        }
+        div.shift-button {
+            width: 90px;
+        }
+        div.ctrl-button {
+            width: 60px;
+        }
+        div.alt-button {
+            width: 60px;
+        }
+        div.space-button {
+            width: 280px;
+        }
+        div.pressed {
+            background-color: #2DA026; /* #2DA026 key pressed color */
+            box-shadow: 0 0 8px 3px rgba(35, 173, 278, 1); /* glow effect while holding key */
+        }
+        div.white-space {
+            border: 2px solid transparent;
+            display: inline-block;
+            /* width: 40px; */
+            width: 30px;
+        }
+        div.line {
+            height: 5px;
+        }
+        div.big-line {
+            height: 15px;
+        }
+        div.buttons {
+            white-space: nowrap;
+            height: 44px;
+            overflow-y: visible;
+        }
+        div.multirow-button {
+            height: 89px;
+        }
+        div.smaller-font {
+            font-size: 18px;
+        }
+        div.released {
+            animation: key-released 0.5s ease-out; /* animation settings for key releasing */
+        }
+        @keyframes key-released {
+            from {
+                background-color: #96CF13; /* #96CF13 key released color */
+            }
+            to {
+                background-color: transparent;
+            }
+        }
+    </style>
+    <script>
+        function listenWebSocket() {
+            let state = {};
+            let ws = new WebSocket('ws://' + location.host + '/ws');
+            ws.onopen = function () {
+                ws.send(JSON.stringify({ listen: 'Keyboard' }));
+            };
+            ws.onmessage = function (event) {
+                let data = JSON.parse(event.data);
+
+                if (data.type == 'Ping') {
+                    // reply to ping messages
+                    ws.send(JSON.stringify({ ping: data.ping }));
+                    return;
+                }
+
+                if (data.type == 'Keyboard') {
+                    if (data.pressed) {
+                        state[data.button] = true;
+                        let element = document.getElementById(data.button);
+                        if (element) {
+                            element.classList.remove('released');
+                            element.classList.add('pressed');
+                        }
+                    } else {
+                        if (state[data.button]) {
+                            delete state[data.button];
+                            let element = document.getElementById(data.button);
+                            if (element) {
+                                element.classList.remove('pressed');
+                                element.classList.add('released');
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            listenWebSocket();
+        });
+
+    </script>
+</head>
+<body>
+    <div class="keyboard">
+        <div class="line"></div>
+        <div class="buttons">
+            <div class="button shift-button" id="LeftShift">Shift</div>
+                        <div class="white-space"></div>
+                        <div class="button" id="KeyR">R</div>
+                        <div class="white-space"></div>
+			<div class="button" id="Up">↑</div>
+        </div>
+        <div class="line"></div>
+        <div class="buttons">
+            <div class="button ctrl-button" id="LeftCtrl">Ctrl</div>
+            <div class="button alt-button" id="LeftAlt">Alt</div>
+                        <div class="white-space"></div>
+			<div class="button" id="Left">←</div>
+			<div class="button" id="Down">↓</div>
+			<div class="button" id="Right">→</div>
+        </div>
+    </div>
+</body>
+</html>
