@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script>
+        const buttonPressedColor = '#2DA026';
+        const buttonReleasedColor = '#96CF13';
+        const releaseFadeTime = '250ms';
+        const scrollAnimationTime = '250'; // milliseconds
+    </script>
+    <style>
+        body {
+            /*background-color: black;*/ /* uncomment to this to debug in browser */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .hidden {
+            display: none !important;
+        }
+        div.container {
+            display: block;
+            white-space: nowrap;
+        }
+        div.keyboard {
+            display: inline-block;
+            margin: 10px;
+        }
+        div.mouse {
+            display: inline-block;
+            margin: 10px;
+        }
+        div.mouse > object {
+            width: 200px;
+            height: 236px;
+        }
+        div.button,
+        div.small-button,
+        div.tab-button,
+        div.caps-button,
+        div.shift-button,
+        div.ctrl-button,
+        div.alt-button,
+        div.space-button {
+            border: 2px solid white;
+            border-radius: 10px;
+            color: white;
+            display: inline-block;
+            font-family: Calibri;
+            font-size: 20px;
+            line-height: 40px;
+            height: 40px;
+            text-align: center;
+            width: 40px;
+        }
+        div.small-button {
+            line-height: 30px;
+            height: 30px;
+        }
+        div.tab-button {
+            width: 60px;
+        }
+        div.caps-button {
+            width: 70px;
+        }
+        div.shift-button {
+            width: 90px;
+        }
+        div.ctrl-button {
+            width: 60px;
+        }
+        div.alt-button {
+            width: 60px;
+        }
+        div.space-button {
+            width: 170px;
+        }
+        div.pressed {
+            background-color: #2DA026; /* key pressed color */
+            box-shadow: 0 0 8px 3px rgba(35, 173, 278, 1); /* glow effect while holding key */
+        }
+        div.white-space {
+            border: 2px solid transparent;
+            display: inline-block;
+            width: 40px;
+        }
+        div.line {
+            height: 5px;
+        }
+        div.big-line {
+            height: 15px;
+        }
+        div.released {
+            animation: key-released 0.5s ease-out; /* animation settings for key releasing */
+        }
+        @keyframes key-released {
+            from {
+                background-color: #96CF13; /* key released color */
+            }
+            to {
+                background-color: transparent;
+            }
+        }
+    </style>
+    <script src="common.js"></script>
+    <script>
+        let svgDoc = null;
+
+        function addSvgReleased(element) {
+            let animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+            animate.setAttribute('id', element.id + '-animate');
+            animate.setAttribute('attributeType', 'XML');
+            animate.setAttribute('attributeName', 'fill-opacity');
+            animate.setAttribute('values', '1.0; 0.0');
+            animate.setAttribute('dur', releaseFadeTime);
+            animate.setAttribute('fill', 'freeze');
+
+            element.appendChild(animate);
+            animate.beginElement();
+        }
+
+        function initScroll() {
+            let scroll1 = svgDoc.getElementById('MouseScrollUp');
+            scroll1.setAttribute('opacity', 0);
+            let scroll2 = svgDoc.getElementById('MouseScrollDown');
+            scroll2.setAttribute('opacity', 0);
+        }
+
+        function removeSvgAnimations(element) {
+            for (let i = 0; i < element.children.length; i++) {
+                if (element.children[i].tagName == 'animateTransform' || element.children[i].tagName == 'animate') {
+                    element.removeChild(element.children[i]);
+                    i--;
+                }
+            }
+        }
+
+        let scrollUpTimeoutId = 0;
+        let scrollDownTimeoutId = 0;
+
+        function processScroll(id, dy, setupTimeout) {
+            let scroll = svgDoc.getElementById(id);
+            removeSvgAnimations(scroll);
+
+            let animateTransform = document.createElementNS('http://www.w3.org/2000/svg', 'animateTransform');
+            animateTransform.setAttribute('attributeName', 'transform');
+            animateTransform.setAttribute('attributeType', 'XML');
+            animateTransform.setAttribute('type', 'translate');
+            animateTransform.setAttribute('from', '0 0');
+            animateTransform.setAttribute('to', '0 ' + dy);
+            animateTransform.setAttribute('dur', scrollAnimationTime + 'ms');
+            animateTransform.setAttribute('repeatCount', '1');
+
+            var animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+            animate.setAttribute('attributeType', 'XML');
+            animate.setAttribute('attributeName', 'opacity');
+            animate.setAttribute('values', '1.0; 0.0');
+            animate.setAttribute('dur', scrollAnimationTime + 'ms');
+            animate.setAttribute('repeatCount', '1');
+
+            scroll.appendChild(animateTransform);
+            scroll.appendChild(animate);
+            animateTransform.beginElement();
+            animate.beginElement();
+
+            setupTimeout(function () {
+                removeSvgAnimations(scroll);
+                scroll.setAttribute('opacity', 0);
+            }, scrollAnimationTime);
+        };
+
+        function scrollUp() {
+            processScroll('MouseScrollUp', '-10', function (callback, delay) {
+                clearTimeout(scrollUpTimeoutId);
+                scrollUpTimeoutId = setTimeout(callback, delay);
+            });
+        };
+
+        function scrollDown() {
+            processScroll('MouseScrollDown', '10', function (callback, delay) {
+                clearTimeout(scrollDownTimeoutId);
+                scrollDownTimeoutId = setTimeout(callback, delay);
+            });
+        };
+
+        function listenWebSocket() {
+            let state = {};
+            let ws = new WebSocket('ws://' + location.host + '/ws');
+            ws.onopen = function () {
+                ws.send(JSON.stringify({ listen: 'Keyboard' }));
+                ws.send(JSON.stringify({ listen: 'MouseButtons' }));
+            };
+            ws.onmessage = function (event) {
+                let data = JSON.parse(event.data);
+
+                if (data.type == 'Ping') {
+                    // reply to ping messages
+                    ws.send(JSON.stringify({ ping: data.ping }));
+                    return;
+                }
+
+                if (data.type == 'Keyboard') {
+                    if (data.pressed) {
+                        state[data.button] = true;
+                        let element = document.getElementById(data.button);
+                        if (element) {
+                            element.classList.remove('released');
+                            element.classList.add('pressed');
+                        }
+                    } else {
+                        if (state[data.button]) {
+                            delete state[data.button];
+                            let element = document.getElementById(data.button);
+                            if (element) {
+                                element.classList.remove('pressed');
+                                element.classList.add('released');
+                            }
+                        }
+                    }
+                }
+
+                if (data.type == 'MouseButtons') {
+                    if (data.button == 'MouseWheelUp') {
+                        scrollUp();
+                    } else if (data.button == 'MouseWheelDown') {
+                        scrollDown();
+                    } else {
+                        if (data.pressed) {
+                            let element = svgDoc.getElementById(data.button);
+                            if (element) {
+                                element.style.fill = buttonPressedColor;
+                                element.style.filter = 'url(#glow)';
+                                removeSvgAnimations(element);
+                            }
+                        } else {
+                            let element = svgDoc.getElementById(data.button);
+                            if (element) {
+                                element.style.fill = buttonReleasedColor;
+                                element.style.filter = 'none';
+                                addSvgReleased(element);
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        function onSvgLoaded() {
+            let object = document.getElementsByTagName('object')[0];
+            svgDoc = object.contentDocument;
+            attachSvgGlowDefinition(svgDoc);
+
+            initScroll();
+            listenWebSocket();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            let object = document.getElementsByTagName('object')[0];
+            if (object.contentDocument && object.contentDocument.rootElement) {
+                onSvgLoaded();
+            } else {
+                object.addEventListener('load', onSvgLoaded);
+            }
+        });
+
+    </script>
+</head>
+<body>
+    <div class="keyboard">
+        <div>
+            <div class="button" id="Tilde">~</div>
+            <div class="button" id="Key1">1</div>
+            <div class="button" id="Key2">2</div>
+            <div class="button" id="Key3">3</div>
+            <div class="button" id="Key4">4</div>
+            <div class="button" id="Key5">5</div>
+            <div class="button hidden" id="Key6">6</div>
+            <div class="button hidden" id="Key7">7</div>
+            <div class="button hidden" id="Key8">8</div>
+        </div>
+        <div class="line"></div>
+        <div>
+            <div class="button tab-button" id="Tab">Tab</div>
+            <div class="button" id="KeyQ">Q</div>
+            <div class="button" id="KeyW">W</div>
+            <div class="button" id="KeyE">E</div>
+            <div class="button" id="KeyR">R</div>
+            <div class="button" id="KeyT">T</div>
+            <div class="button hidden" id="KeyY">Y</div>
+            <div class="button hidden" id="KeyU">U</div>
+            <div class="button hidden" id="KeyI">I</div>
+        </div>
+        <div class="line"></div>
+        <div>
+            <div class="button caps-button" id="CapsLock">Caps</div>
+            <div class="button" id="KeyA">A</div>
+            <div class="button" id="KeyS">S</div>
+            <div class="button" id="KeyD">D</div>
+            <div class="button" id="KeyF">F</div>
+            <div class="button" id="KeyG">G</div>
+            <div class="button hidden" id="KeyH">H</div>
+            <div class="button hidden" id="KeyJ">J</div>
+            <div class="button hidden" id="KeyK">K</div>
+        </div>
+        <div class="line"></div>
+        <div>
+            <div class="button shift-button" id="LeftShift">Shift</div>
+            <div class="button" id="KeyZ">Z</div>
+            <div class="button" id="KeyX">X</div>
+            <div class="button" id="KeyC">C</div>
+            <div class="button" id="KeyV">V</div>
+            <div class="button" id="KeyB">B</div>
+            <div class="button hidden" id="KeyN">N</div>
+            <div class="button hidden" id="KeyM">M</div>
+        </div>
+        <div class="line"></div>
+        <div>
+            <div class="button ctrl-button" id="LeftCtrl">Ctrl</div>
+            <div class="white-space"></div>
+            <div class="button alt-button" id="LeftAlt">Alt</div>
+            <div class="button space-button" id="Space">Space</div>
+        </div>
+    </div>
+    <div class="mouse">
+        <object data="mouse.svg" type="image/svg+xml"></object>
+    </div>
+</body>
+</html>
